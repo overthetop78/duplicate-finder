@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".ods"}
+SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".ods"}
 
 
 def ensure_directory(path: Path) -> Path:

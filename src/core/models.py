@@ -20,9 +20,11 @@ class Record:
 
 @dataclass(slots=True)
 class DuplicateResult:
+    column_name: str
     value: str
     type: DuplicateType
-    occurrences: list[Record] = field(default_factory=list)
+    column_index: int = 0
+    occurrences: list[Record] = field(default_factory=lambda: [])
 
 
 @dataclass(slots=True)
@@ -32,10 +34,13 @@ class AnalysisSummary:
     internal_count: int
     external_count: int
     occurrence_count: int
+    scanned_value_count: int
+    ignored_value_count: int
+    analyzed_value_count: int
 
 
 @dataclass(slots=True)
 class ServiceResult:
     results: list[DuplicateResult]
     summary: AnalysisSummary
-    errors: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=lambda: [])

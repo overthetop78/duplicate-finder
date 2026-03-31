@@ -3,5 +3,4 @@ openpyxl
 xlrd
 PySide6
 rich
-pathlib
 odfpy

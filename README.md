@@ -39,6 +39,32 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
+## Build autonome (sans Python installe)
+
+Le projet peut etre compile en executable autonome avec PyInstaller.
+
+Important:
+- build Linux doit etre fait sur Linux
+- build Windows doit etre fait sur Windows
+- PyInstaller ne genere pas un `.exe` Windows fiable depuis Linux
+
+### Ubuntu / Linux
+
+```bash
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh
+```
+
+Sortie: `dist/duplicate-finder`
+
+### Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+```
+
+Sortie: `dist/duplicate-finder.exe`
+
 ## Utilisation
 
 1. Sélectionner un ou plusieurs fichiers.
