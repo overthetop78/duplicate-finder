@@ -73,13 +73,13 @@ jobs:
           cp -r data/. release-linux/data/
           cp output/.gitkeep release-linux/output/.gitkeep
           chmod +x release-linux/duplicate-finder
-          tar -czf duplicate-finder-linux-${{ github.ref_name }}.tar.gz -C release-linux .
+          tar -czf duplicate-finder-linux-${{ env.RELEASE_VERSION }}.tar.gz -C release-linux .
 
       - name: Upload artifact Linux
         uses: actions/upload-artifact@v4
         with:
           name: duplicate-finder-linux
-          path: duplicate-finder-linux-${{ github.ref_name }}.tar.gz
+          path: duplicate-finder-linux-${{ env.RELEASE_VERSION }}.tar.gz
 
   # ─── Build Windows ─────────────────────────────────────────────
   build-windows:
@@ -118,13 +118,13 @@ jobs:
           Copy-Item dist\duplicate-finder.exe release-windows\
           Copy-Item data\* release-windows\data\ -Recurse
           Copy-Item output\.gitkeep release-windows\output\.gitkeep
-          Compress-Archive -Path release-windows\* -DestinationPath duplicate-finder-windows-${{ github.ref_name }}.zip
+          Compress-Archive -Path release-windows\* -DestinationPath duplicate-finder-windows-${{ env.RELEASE_VERSION }}.zip
 
       - name: Upload artifact Windows
         uses: actions/upload-artifact@v4
         with:
           name: duplicate-finder-windows
-          path: duplicate-finder-windows-${{ github.ref_name }}.zip
+          path: duplicate-finder-windows-${{ env.RELEASE_VERSION }}.zip
 
   # ─── Créer la Release GitHub ───────────────────────────────────
   release:
@@ -151,7 +151,9 @@ jobs:
       - name: Créer la Release GitHub
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_VERSION }}
           name: "Release ${{ env.RELEASE_VERSION }}"
+          target_commitish: ${{ github.sha }}
           draft: false
           prerelease: false
           files: |
