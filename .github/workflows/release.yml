@@ -1,18 +1,37 @@
 name: Build & Release
 
 # Se déclenche quand on pousse un tag du type v1.0.0, v2.3.1, etc.
+# Ou manuellement depuis l'onglet Actions de GitHub (sans saisie requise)
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: write  # nécessaire pour créer la release GitHub
 
 jobs:
+  # ─── Calcul de la version ──────────────────────────────────────
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Calculer la version
+        id: version
+        run: |
+          if [[ "${{ github.ref_name }}" == v*.*.* ]]; then
+            echo "value=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=v$(date +'%Y.%m.%d')-${{ github.run_number }}" >> $GITHUB_OUTPUT
+          fi
   # ─── Build Linux ───────────────────────────────────────────────
   build-linux:
+    needs: prepare
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,24 +66,27 @@ jobs:
             --hidden-import pandas \
             src/main.py
 
-      - name: Préparer le zip Linux
+      - name: Préparer le tar.gz Linux
         run: |
           mkdir -p release-linux/data release-linux/output
           cp dist/duplicate-finder release-linux/
           cp -r data/. release-linux/data/
           cp output/.gitkeep release-linux/output/.gitkeep
           chmod +x release-linux/duplicate-finder
-          cd release-linux && zip -r ../duplicate-finder-linux-${{ github.ref_name }}.zip .
+          tar -czf duplicate-finder-linux-${{ github.ref_name }}.tar.gz -C release-linux .
 
       - name: Upload artifact Linux
         uses: actions/upload-artifact@v4
         with:
           name: duplicate-finder-linux
-          path: duplicate-finder-linux-${{ github.ref_name }}.zip
+          path: duplicate-finder-linux-${{ github.ref_name }}.tar.gz
 
   # ─── Build Windows ─────────────────────────────────────────────
   build-windows:
+    needs: prepare
     runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -106,8 +128,10 @@ jobs:
 
   # ─── Créer la Release GitHub ───────────────────────────────────
   release:
-    needs: [build-linux, build-windows]
+    needs: [prepare, build-linux, build-windows]
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Télécharger l'artifact Linux
         uses: actions/download-artifact@v4
@@ -122,14 +146,14 @@ jobs:
           path: artifacts/windows
 
       - name: Rendre le binaire Linux exécutable
-        run: chmod +x artifacts/linux/duplicate-finder-linux-${{ github.ref_name }}.zip || true
+        run: echo "permissions préservées dans le tar.gz"
 
       - name: Créer la Release GitHub
         uses: softprops/action-gh-release@v2
         with:
-          name: "Release ${{ github.ref_name }}"
+          name: "Release ${{ env.RELEASE_VERSION }}"
           draft: false
           prerelease: false
           files: |
-            artifacts/linux/duplicate-finder-linux-${{ github.ref_name }}.zip
-            artifacts/windows/duplicate-finder-windows-${{ github.ref_name }}.zip
+            artifacts/linux/duplicate-finder-linux-${{ env.RELEASE_VERSION }}.tar.gz
+            artifacts/windows/duplicate-finder-windows-${{ env.RELEASE_VERSION }}.zip
