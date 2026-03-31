@@ -30,6 +30,7 @@ jobs:
   build-linux:
     needs: prepare
     runs-on: ubuntu-20.04
+    continue-on-error: true
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
@@ -85,6 +86,7 @@ jobs:
   build-linux-arm64:
     needs: prepare
     runs-on: ubuntu-22.04-arm
+    continue-on-error: true
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
@@ -137,10 +139,11 @@ jobs:
           name: duplicate-finder-linux-arm64
           path: duplicate-finder-linux-arm64-${{ env.RELEASE_VERSION }}.tar.gz
 
-  # ─── Build macOS ───────────────────────────────────────────────
-  build-macos:
+  # ─── Build macOS ARM64 (Apple Silicon M1/M2/M3/M4) ───────────
+  build-macos-arm64:
     needs: prepare
     runs-on: macos-latest
+    continue-on-error: true
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
@@ -154,14 +157,13 @@ jobs:
       - name: Installer les dépendances Python
         run: pip install -r requirements.txt -r requirements-build.txt
 
-      - name: Build PyInstaller (macOS universal — Intel + Apple Silicon)
+      - name: Build PyInstaller (macOS ARM64)
         run: |
           python -m PyInstaller \
             --noconfirm \
             --clean \
             --windowed \
-            --onefile \
-            --target-arch universal2 \
+            --onedir \
             --name duplicate-finder \
             --hidden-import openpyxl \
             --hidden-import xlrd \
@@ -169,31 +171,73 @@ jobs:
             --hidden-import pandas \
             src/main.py
 
-      - name: Préparer le tar.gz macOS universal
+      - name: Préparer le tar.gz macOS ARM64
         run: |
-          mkdir -p release-macos/data release-macos/output
-          # Prendre le .app si présent, sinon l'exécutable
-          if [ -d "dist/duplicate-finder.app" ]; then
-            cp -r dist/duplicate-finder.app release-macos/
-          else
-            cp dist/duplicate-finder release-macos/
-            chmod +x release-macos/duplicate-finder
-          fi
-          cp -r data/. release-macos/data/
-          cp output/.gitkeep release-macos/output/.gitkeep
-          tar -czf duplicate-finder-macos-universal-${{ env.RELEASE_VERSION }}.tar.gz -C release-macos .
-          # Compatible : macOS 11+ Intel (x86_64) ET Apple Silicon (M1/M2/M3/M4)
+          mkdir -p release-macos-arm64/data release-macos-arm64/output
+          cp -r dist/duplicate-finder.app release-macos-arm64/
+          cp -r data/. release-macos-arm64/data/
+          cp output/.gitkeep release-macos-arm64/output/.gitkeep
+          tar -czf duplicate-finder-macos-arm64-${{ env.RELEASE_VERSION }}.tar.gz -C release-macos-arm64 .
+          # Compatible : macOS 11+ Apple Silicon (M1/M2/M3/M4)
 
-      - name: Upload artifact macOS universal
+      - name: Upload artifact macOS ARM64
         uses: actions/upload-artifact@v4
         with:
-          name: duplicate-finder-macos-universal
-          path: duplicate-finder-macos-universal-${{ env.RELEASE_VERSION }}.tar.gz
+          name: duplicate-finder-macos-arm64
+          path: duplicate-finder-macos-arm64-${{ env.RELEASE_VERSION }}.tar.gz
+
+  # ─── Build macOS x86_64 (Intel) ───────────────────────────────
+  build-macos-x86_64:
+    needs: prepare
+    runs-on: macos-13
+    continue-on-error: true
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer les dépendances Python
+        run: pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Build PyInstaller (macOS x86_64)
+        run: |
+          python -m PyInstaller \
+            --noconfirm \
+            --clean \
+            --windowed \
+            --onedir \
+            --name duplicate-finder \
+            --hidden-import openpyxl \
+            --hidden-import xlrd \
+            --hidden-import odf \
+            --hidden-import pandas \
+            src/main.py
+
+      - name: Préparer le tar.gz macOS x86_64
+        run: |
+          mkdir -p release-macos-x86_64/data release-macos-x86_64/output
+          cp -r dist/duplicate-finder.app release-macos-x86_64/
+          cp -r data/. release-macos-x86_64/data/
+          cp output/.gitkeep release-macos-x86_64/output/.gitkeep
+          tar -czf duplicate-finder-macos-x86_64-${{ env.RELEASE_VERSION }}.tar.gz -C release-macos-x86_64 .
+          # Compatible : macOS 10.13+ Intel (x86_64) — fonctionne aussi via Rosetta 2 sur Apple Silicon
+
+      - name: Upload artifact macOS x86_64
+        uses: actions/upload-artifact@v4
+        with:
+          name: duplicate-finder-macos-x86_64
+          path: duplicate-finder-macos-x86_64-${{ env.RELEASE_VERSION }}.tar.gz
 
   # ─── Build Windows ─────────────────────────────────────────────
   build-windows:
     needs: prepare
     runs-on: windows-latest
+    continue-on-error: true
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
@@ -238,31 +282,43 @@ jobs:
 
   # ─── Créer la Release GitHub ───────────────────────────────────
   release:
-    needs: [prepare, build-linux, build-linux-arm64, build-macos, build-windows]
+    needs: [prepare, build-linux, build-linux-arm64, build-macos-arm64, build-macos-x86_64, build-windows]
     runs-on: ubuntu-latest
+    if: always() && needs.prepare.result == 'success'
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Télécharger l'artifact Linux x86_64
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: duplicate-finder-linux-x86_64
           path: artifacts/linux-x86_64
 
       - name: Télécharger l'artifact Linux ARM64
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: duplicate-finder-linux-arm64
           path: artifacts/linux-arm64
 
-      - name: Télécharger l'artifact macOS universal
+      - name: Télécharger l'artifact macOS ARM64
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
-          name: duplicate-finder-macos-universal
-          path: artifacts/macos
+          name: duplicate-finder-macos-arm64
+          path: artifacts/macos-arm64
+
+      - name: Télécharger l'artifact macOS x86_64
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: duplicate-finder-macos-x86_64
+          path: artifacts/macos-x86_64
 
       - name: Télécharger l'artifact Windows x86_64
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: duplicate-finder-windows-x86_64
           path: artifacts/windows
@@ -275,8 +331,10 @@ jobs:
           target_commitish: ${{ github.sha }}
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
           files: |
             artifacts/linux-x86_64/duplicate-finder-linux-x86_64-${{ env.RELEASE_VERSION }}.tar.gz
             artifacts/linux-arm64/duplicate-finder-linux-arm64-${{ env.RELEASE_VERSION }}.tar.gz
-            artifacts/macos/duplicate-finder-macos-universal-${{ env.RELEASE_VERSION }}.tar.gz
+            artifacts/macos-arm64/duplicate-finder-macos-arm64-${{ env.RELEASE_VERSION }}.tar.gz
+            artifacts/macos-x86_64/duplicate-finder-macos-x86_64-${{ env.RELEASE_VERSION }}.tar.gz
             artifacts/windows/duplicate-finder-windows-x86_64-${{ env.RELEASE_VERSION }}.zip
